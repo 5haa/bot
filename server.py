@@ -43,10 +43,18 @@ def callback(user_id):
             logger.info(f'Balance after update for user {user_id}: {user_balances[user_id]}')
             # Send confirmation message to the user
             send_confirmation(user_id, amount)
+        else:
+            logger.warning(f'Payment status is not confirmed: {data["payment_status"]}')
         return jsonify({'status': 'success'})
     except Exception as e:
         logger.error(f'Error processing IPN callback for user {user_id}: {e}')
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/balance/<int:user_id>', methods=['GET'])
+def get_balance(user_id):
+    balance = user_balances.get(user_id, 0)
+    logger.info(f'Retrieved balance for user {user_id}: {balance}')
+    return jsonify({'balance': balance})
 
 def update_balance(user_id: int, amount: float) -> None:
     """Update user's balance when a deposit is received."""
