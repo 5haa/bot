@@ -48,7 +48,7 @@ def callback(user_id):
 
 def update_balance(user_id: int, amount: float) -> None:
     """Update user's balance when a deposit is received."""
-    global user_balances
+    global user_balances  # Referencing the global user_balances variable
     user_balances[user_id] = user_balances.get(user_id, 0) + amount
     logger.info(f'Updated balance for user {user_id}: {user_balances[user_id]}')
 
