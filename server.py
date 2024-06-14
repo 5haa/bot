@@ -39,6 +39,8 @@ def callback(user_id):
             amount = float(data['pay_amount'])
             # Update user balance
             update_balance(user_id, amount)
+            # Log the balance after update
+            logger.info(f'Balance after update for user {user_id}: {user_balances[user_id]}')
             # Send confirmation message to the user
             send_confirmation(user_id, amount)
         return jsonify({'status': 'success'})
@@ -49,7 +51,10 @@ def callback(user_id):
 def update_balance(user_id: int, amount: float) -> None:
     """Update user's balance when a deposit is received."""
     global user_balances  # Referencing the global user_balances variable
-    user_balances[user_id] = user_balances.get(user_id, 0) + amount
+    if user_id not in user_balances:
+        user_balances[user_id] = 0  # Initialize balance if not exists
+    logger.info(f'Current balance for user {user_id}: {user_balances[user_id]}')
+    user_balances[user_id] += amount
     logger.info(f'Updated balance for user {user_id}: {user_balances[user_id]}')
 
 if __name__ == '__main__':
