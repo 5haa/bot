@@ -6,10 +6,10 @@ import json
 import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://')
 db = SQLAlchemy(app)
 
-BOT_TOKEN = '8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA'  # Replace with your actual bot token
+BOT_TOKEN = os.environ.get('8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA')
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
