@@ -1,172 +1,109 @@
-from flask import Flask, request, jsonify, render_template
-from flask_sqlalchemy import SQLAlchemy
-import hashlib
-import hmac
-import json
-import requests
-import logging
-import sys
-import traceback
-import os
+import telebot
+import mysql.connector
+from mysql.connector import Error
 
-app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# Database connection information
-db_user = 'root'
-db_password = 'mQGaM5XO6KB50GFRfkLkRSnbeFpQ06Cm'
-db_host = 'um8w47.stackhero-network.com'
-db_port = '4803'
-db_name = 'ah-mysql-stackhero-closed-63170'
-
-# Construct the SQLAlchemy database URI
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?ssl_ca=/path/to/isrgrootx1.pem&ssl_verify_cert=true"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
+# Bot token
 BOT_TOKEN = '8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA'
-API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+bot = telebot.TeleBot(BOT_TOKEN)
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    telegram_id = db.Column(db.String(50), unique=True, nullable=False)
-    username = db.Column(db.String(100))
-    first_name = db.Column(db.String(100))
-    last_name = db.Column(db.String(100))
+# MySQL Database Configuration
+db_config = {
+    'host': 'um8w47.stackhero-network.com',
+    'user': 'root',
+    'password': 'mQGaM5XO6KB50GFRfkLkRSnbeFpQ06Cm',
+    'database': 'ah-mysql-stackhero-closed-63170',
+    'port': '4803'
+}
 
-def verify_telegram_data(data):
-    data_check_string = '\n'.join([f'{k}={v}' for k, v in sorted(data.items()) if k != 'hash'])
-    secret_key = hashlib.sha256(BOT_TOKEN.encode('utf-8')).digest()
-    computed_hash = hmac.new(secret_key, data_check_string.encode('utf-8'), hashlib.sha256).hexdigest()
-    return computed_hash == data['hash']
+def create_connection():
+    try:
+        connection = mysql.connector.connect(**db_config)
+        return connection
+    except Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return None
 
-def send_telegram_message(chat_id, text):
-    url = f"{API_URL}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text
-    }
-    response = requests.post(url, json=payload)
-    return response.json()
+def create_table():
+    connection = create_connection()
+    if connection:
+        try:
+            cursor = connection.cursor()
+            create_table_query = """
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT UNIQUE,
+                first_name VARCHAR(255),
+                last_name VARCHAR(255),
+                username VARCHAR(255)
+            )
+            """
+            cursor.execute(create_table_query)
+            connection.commit()
+        except Error as e:
+            print(f"Error creating table: {e}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
 
-@app.route('/start', methods=['POST'])
-def start():
-    app.logger.debug("Received request to /start")
-    app.logger.debug(f"Request data: {request.data}")
-    app.logger.debug(f"Request headers: {request.headers}")
+def register_user(user):
+    connection = create_connection()
+    if connection:
+        try:
+            cursor = connection.cursor()
+            insert_query = """
+            INSERT INTO users (user_id, first_name, last_name, username)
+            VALUES (%s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+            first_name = VALUES(first_name),
+            last_name = VALUES(last_name),
+            username = VALUES(username)
+            """
+            user_data = (user.id, user.first_name, user.last_name, user.username)
+            cursor.execute(insert_query, user_data)
+            connection.commit()
+        except Error as e:
+            print(f"Error registering user: {e}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+
+def get_user_info(user_id):
+    connection = create_connection()
+    if connection:
+        try:
+            cursor = connection.cursor(dictionary=True)
+            select_query = "SELECT * FROM users WHERE user_id = %s"
+            cursor.execute(select_query, (user_id,))
+            user_info = cursor.fetchone()
+            return user_info
+        except Error as e:
+            print(f"Error getting user info: {e}")
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+    return None
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    user = message.from_user
+    register_user(user)
+    user_info = get_user_info(user.id)
     
-    try:
-        data = request.json
-        app.logger.debug(f"Parsed JSON data: {data}")
-        
-        if data and 'message' in data and 'text' in data['message']:
-            chat_id = data['message']['chat']['id']
-            user_id = data['message']['from']['id']
-            username = data['message']['from'].get('username', 'No username')
-            first_name = data['message']['from'].get('first_name', '')
-            last_name = data['message']['from'].get('last_name', '')
-
-            app.logger.info(f"Received /start command from user {username} (ID: {user_id})")
-
-            try:
-                user = User.query.filter_by(telegram_id=str(user_id)).first()
-                if not user:
-                    user = User(telegram_id=str(user_id), username=username, 
-                                first_name=first_name, last_name=last_name)
-                    db.session.add(user)
-                    db.session.commit()
-                    app.logger.info(f"New user {username} added to database")
-                else:
-                    app.logger.info(f"Existing user {username} found in database")
-            except Exception as db_error:
-                app.logger.error(f"Database error: {str(db_error)}")
-                app.logger.error(traceback.format_exc())
-                # Continue even if database operation fails
-
-            response_text = f"Hello, @{username}! Your bot is running. Welcome to the Mini App!"
-            try:
-                send_result = send_telegram_message(chat_id, response_text)
-                app.logger.debug(f"Send message result: {send_result}")
-            except Exception as send_error:
-                app.logger.error(f"Error sending message: {str(send_error)}")
-                app.logger.error(traceback.format_exc())
-            
-            return jsonify({'message': 'Start command processed'}), 200
-        else:
-            app.logger.warning("Received data is not a valid Telegram message")
-            app.logger.debug(f"Invalid data: {data}")
-            return jsonify({'error': 'Invalid data format'}), 400
-
-    except Exception as e:
-        app.logger.error(f"Error processing /start command: {str(e)}")
-        app.logger.error(traceback.format_exc())
-        return jsonify({'message': 'Error occurred, but processed'}), 200  # Still return 200 to Telegram
-
-@app.route('/')
-def home():
-    app.logger.debug(f"Received request to home route")
-    app.logger.debug(f"Request args: {request.args}")
-    app.logger.debug(f"Request headers: {request.headers}")
-
-    init_data = request.args.get('initData')
+    if user_info:
+        greeting = f"Welcome, {user_info['first_name']}!\n\n"
+        greeting += "Your information:\n"
+        greeting += f"User ID: {user_info['user_id']}\n"
+        greeting += f"First Name: {user_info['first_name']}\n"
+        greeting += f"Last Name: {user_info['last_name']}\n"
+        greeting += f"Username: {user_info['username']}"
+    else:
+        greeting = "Welcome! There was an error retrieving your information."
     
-    if not init_data:
-        app.logger.warning("No init data provided")
-        return render_template('error.html', message="No init data provided. Please launch this app from Telegram.")
-
-    try:
-        data_dict = dict(x.split('=') for x in init_data.split('&'))
-        app.logger.debug(f"Parsed init data: {data_dict}")
-
-        if not verify_telegram_data(data_dict):
-            app.logger.warning("Invalid Telegram data")
-            return render_template('error.html', message="Invalid data. Please try launching the app again.")
-
-        user_data = json.loads(data_dict['user'])
-        app.logger.debug(f"User data: {user_data}")
-
-        user = User.query.filter_by(telegram_id=user_data['id']).first()
-        if not user:
-            app.logger.warning(f"User not found: {user_data['id']}")
-            return render_template('error.html', message="User not found. Please start the bot first.")
-
-        return render_template('home.html', user=user)
-
-    except Exception as e:
-        app.logger.error(f"Error processing home route: {str(e)}")
-        app.logger.error(traceback.format_exc())
-        return render_template('error.html', message="An error occurred. Please try again later.")
-
-@app.route('/health')
-def health_check():
-    return jsonify({"status": "ok", "message": "App is running"}), 200
-
-@app.route('/check_db')
-def check_db():
-    try:
-        db.session.query("1").from_statement("SELECT 1").all()
-        return jsonify({"status": "ok", "message": "Database connection successful"}), 200
-    except Exception as e:
-        app.logger.error(f"Database connection error: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.errorhandler(500)
-def internal_error(error):
-    app.logger.error(f"500 error: {str(error)}")
-    app.logger.error(traceback.format_exc())
-    return jsonify({'error': 'Internal server error'}), 500
-
-def initialize_database():
-    app.logger.debug("Attempting to create database tables...")
-    try:
-        with app.app_context():
-            db.create_all()
-        app.logger.debug("Database tables created successfully.")
-    except Exception as e:
-        app.logger.error(f"Error creating database tables: {str(e)}")
-        app.logger.error(traceback.format_exc())
+    bot.reply_to(message, greeting)
 
 if __name__ == '__main__':
-    initialize_database()
-    app.run(debug=True)
+    create_table()
+    bot.polling()
