@@ -1,10 +1,16 @@
-import telebot
+from telebot import TeleBot
 import mysql.connector
 from mysql.connector import Error
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Bot token
 BOT_TOKEN = '8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA'
-bot = telebot.TeleBot(BOT_TOKEN)
+
+bot = TeleBot(BOT_TOKEN)
 
 # MySQL Database Configuration
 db_config = {
@@ -18,9 +24,10 @@ db_config = {
 def create_connection():
     try:
         connection = mysql.connector.connect(**db_config)
+        logger.info("Database connection successful")
         return connection
     except Error as e:
-        print(f"Error connecting to MySQL: {e}")
+        logger.error(f"Error connecting to MySQL: {e}")
         return None
 
 def create_table():
@@ -39,8 +46,9 @@ def create_table():
             """
             cursor.execute(create_table_query)
             connection.commit()
+            logger.info("Table created successfully")
         except Error as e:
-            print(f"Error creating table: {e}")
+            logger.error(f"Error creating table: {e}")
         finally:
             if connection.is_connected():
                 cursor.close()
@@ -62,8 +70,9 @@ def register_user(user):
             user_data = (user.id, user.first_name, user.last_name, user.username)
             cursor.execute(insert_query, user_data)
             connection.commit()
+            logger.info(f"User registered: {user.id}")
         except Error as e:
-            print(f"Error registering user: {e}")
+            logger.error(f"Error registering user: {e}")
         finally:
             if connection.is_connected():
                 cursor.close()
@@ -77,9 +86,10 @@ def get_user_info(user_id):
             select_query = "SELECT * FROM users WHERE user_id = %s"
             cursor.execute(select_query, (user_id,))
             user_info = cursor.fetchone()
+            logger.info(f"Retrieved user info for: {user_id}")
             return user_info
         except Error as e:
-            print(f"Error getting user info: {e}")
+            logger.error(f"Error getting user info: {e}")
         finally:
             if connection.is_connected():
                 cursor.close()
@@ -88,6 +98,7 @@ def get_user_info(user_id):
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    logger.info(f"Received /start command from user: {message.from_user.id}")
     user = message.from_user
     register_user(user)
     user_info = get_user_info(user.id)
@@ -103,11 +114,15 @@ def start(message):
         greeting = "Welcome! There was an error retrieving your information."
     
     bot.reply_to(message, greeting)
+    logger.info(f"Sent greeting to user: {message.from_user.id}")
 
 def remove_webhook():
     bot.remove_webhook()
+    logger.info("Webhook removed")
 
 if __name__ == '__main__':
-    remove_webhook()  # Remove the webhook before starting the bot
+    logger.info("Starting bot...")
+    remove_webhook()
     create_table()
+    logger.info("Bot is polling for updates...")
     bot.polling(none_stop=True)
