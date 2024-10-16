@@ -134,7 +134,7 @@ def webhook():
 @app.route("/")
 def webhook_info():
     bot.remove_webhook()
-    bot.set_webhook(url='https://your-app-url.com/' + BOT_TOKEN)
+    bot.set_webhook(url='https://bot-wn6y.onrender.com/' + BOT_TOKEN)
     return "Webhook setup ok", 200
 
 if __name__ == "__main__":
