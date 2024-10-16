@@ -54,12 +54,13 @@ def send_telegram_message(chat_id, text):
 def start():
     app.logger.debug("Received request to /start")
     app.logger.debug(f"Request data: {request.data}")
+    app.logger.debug(f"Request headers: {request.headers}")
     
     try:
         data = request.json
         app.logger.debug(f"Parsed JSON data: {data}")
         
-        if 'message' in data and 'text' in data['message']:
+        if data and 'message' in data and 'text' in data['message']:
             chat_id = data['message']['chat']['id']
             user_id = data['message']['from']['id']
             username = data['message']['from'].get('username', 'No username')
@@ -76,23 +77,31 @@ def start():
                     db.session.add(user)
                     db.session.commit()
                     app.logger.info(f"New user {username} added to database")
+                else:
+                    app.logger.info(f"Existing user {username} found in database")
             except Exception as db_error:
                 app.logger.error(f"Database error: {str(db_error)}")
+                app.logger.error(traceback.format_exc())
                 # Continue even if database operation fails
 
             response_text = f"Hello, @{username}! Your bot is running. Welcome to the Mini App!"
-            send_result = send_telegram_message(chat_id, response_text)
-            app.logger.debug(f"Send message result: {send_result}")
+            try:
+                send_result = send_telegram_message(chat_id, response_text)
+                app.logger.debug(f"Send message result: {send_result}")
+            except Exception as send_error:
+                app.logger.error(f"Error sending message: {str(send_error)}")
+                app.logger.error(traceback.format_exc())
             
             return jsonify({'message': 'Start command processed'}), 200
         else:
-            app.logger.warning("Received data is not a Telegram message")
+            app.logger.warning("Received data is not a valid Telegram message")
+            app.logger.debug(f"Invalid data: {data}")
             return jsonify({'error': 'Invalid data format'}), 400
 
     except Exception as e:
         app.logger.error(f"Error processing /start command: {str(e)}")
         app.logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'message': 'Error occurred, but processed'}), 200  # Still return 200 to Telegram
 
 @app.route('/')
 def home():
@@ -129,29 +138,18 @@ def home():
         app.logger.error(traceback.format_exc())
         return render_template('error.html', message="An error occurred. Please try again later.")
 
+@app.route('/health')
+def health_check():
+    return jsonify({"status": "ok", "message": "App is running"}), 200
+
 @app.route('/check_db')
 def check_db():
     try:
-        # Check if the table exists
-        exists = db.engine.dialect.has_table(db.engine.connect(), "user")
-        if exists:
-            users = User.query.all()
-            return jsonify({
-                "status": "success",
-                "message": "Database connected and User table exists",
-                "user_count": len(users)
-            })
-        else:
-            return jsonify({
-                "status": "warning",
-                "message": "Database connected but User table does not exist"
-            })
+        db.session.query("1").from_statement("SELECT 1").all()
+        return jsonify({"status": "ok", "message": "Database connection successful"}), 200
     except Exception as e:
-        app.logger.error(f"Database check error: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": f"Error checking database: {str(e)}"
-        }), 500
+        app.logger.error(f"Database connection error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.errorhandler(500)
 def internal_error(error):
