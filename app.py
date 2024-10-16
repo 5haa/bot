@@ -7,18 +7,20 @@ import requests
 import logging
 import sys
 import traceback
+import os
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Database connection information
-db_user = 'admin'
-db_password = '$H@@Gy4n'
-db_host = 'c3p4ih.stackhero-network.com'
-db_port = '5796'
-db_name = 'admin'
+db_user = 'root'
+db_password = 'mQGaM5XO6KB50GFRfkLkRSnbeFpQ06Cm'
+db_host = 'um8w47.stackhero-network.com'
+db_port = '4803'
+db_name = 'ah-mysql-stackhero-closed-63170'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
+# Construct the SQLAlchemy database URI
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?ssl_ca=/path/to/isrgrootx1.pem"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
