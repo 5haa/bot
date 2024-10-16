@@ -20,7 +20,7 @@ db_port = '4803'
 db_name = 'ah-mysql-stackhero-closed-63170'
 
 # Construct the SQLAlchemy database URI
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?ssl_ca=/path/to/isrgrootx1.pem"
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?ssl_ca=/path/to/isrgrootx1.pem&ssl_verify_cert=true"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -129,13 +129,46 @@ def home():
         app.logger.error(traceback.format_exc())
         return render_template('error.html', message="An error occurred. Please try again later.")
 
+@app.route('/check_db')
+def check_db():
+    try:
+        # Check if the table exists
+        exists = db.engine.dialect.has_table(db.engine.connect(), "user")
+        if exists:
+            users = User.query.all()
+            return jsonify({
+                "status": "success",
+                "message": "Database connected and User table exists",
+                "user_count": len(users)
+            })
+        else:
+            return jsonify({
+                "status": "warning",
+                "message": "Database connected but User table does not exist"
+            })
+    except Exception as e:
+        app.logger.error(f"Database check error: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error checking database: {str(e)}"
+        }), 500
+
 @app.errorhandler(500)
 def internal_error(error):
     app.logger.error(f"500 error: {str(error)}")
     app.logger.error(traceback.format_exc())
     return jsonify({'error': 'Internal server error'}), 500
 
+def initialize_database():
+    app.logger.debug("Attempting to create database tables...")
+    try:
+        with app.app_context():
+            db.create_all()
+        app.logger.debug("Database tables created successfully.")
+    except Exception as e:
+        app.logger.error(f"Error creating database tables: {str(e)}")
+        app.logger.error(traceback.format_exc())
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    initialize_database()
     app.run(debug=True)
