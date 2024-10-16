@@ -1,21 +1,189 @@
-# templates/index.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Python Website</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Wallet App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            background-color: var(--tg-theme-bg-color, #f3f4f6);
+            color: var(--tg-theme-text-color, #000);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+        }
+        .icon {
+            width: 24px;
+            height: 24px;
+            background-color: var(--tg-theme-button-color, #333);
+        }
+        .avatar {
+            width: 24px;
+            height: 24px;
+            background-color: var(--tg-theme-secondary-bg-color, #d1d5db);
+            border-radius: 50%;
+        }
+        main {
+            flex-grow: 1;
+            padding: 0 1.5rem 1.5rem;
+            overflow-y: auto;
+        }
+        .balance-card {
+            background-color: var(--tg-theme-bg-color, white);
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .visa-card {
+            background: linear-gradient(to bottom right, #1f2937, #111827);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .visa-card-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+        .visa-card-footer {
+            display: flex;
+            justify-content: space-between;
+        }
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .action-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .button-icon {
+            width: 3.5rem;
+            height: 3.5rem;
+            background-color: var(--tg-theme-button-color, white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 0.5rem;
+        }
+        .transactions-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .transaction-card {
+            background-color: var(--tg-theme-bg-color, white);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .transaction-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
 </head>
 <body>
     <header>
-        <h1>Welcome to My Simple Python Website</h1>
+        <div class="icon"></div>
+        <h1 style="font-size: 1.25rem; font-weight: 600;">Home</h1>
+        <div class="avatar"></div>
     </header>
     <main>
-        <p>This is a basic website created using Python and Flask.</p>
+        <div class="balance-card">
+            <p style="color: var(--tg-theme-hint-color, #4b5563); margin-bottom: 0.5rem;">Current balance</p>
+            <h2 id="balance" style="font-size: 1.875rem; font-weight: 700; margin-bottom: 1.5rem;">€ 0.00</h2>
+            <div class="visa-card">
+                <div class="visa-card-header">
+                    <p style="font-weight: 700; font-size: 1.125rem;">PULSE</p>
+                    <p style="font-weight: 700; font-size: 1.125rem;">VISA</p>
+                </div>
+                <p style="font-size: 1.25rem; margin-bottom: 1rem; font-family: monospace;">•••• •••• •••• 7995</p>
+                <div class="visa-card-footer">
+                    <div>
+                        <p style="color: #9ca3af; font-size: 0.75rem;">CARD HOLDER</p>
+                        <p id="cardHolder" style="font-size: 0.875rem; font-weight: 600;">JOHN DOE</p>
+                    </div>
+                    <div>
+                        <p style="color: #9ca3af; font-size: 0.75rem;">EXPIRES</p>
+                        <p style="font-size: 0.875rem; font-weight: 600;">12/28</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="action-buttons">
+            <div class="action-button">
+                <div class="button-icon">+</div>
+                <span style="font-size: 0.75rem; color: var(--tg-theme-hint-color, #4b5563);">Top up</span>
+            </div>
+            <div class="action-button">
+                <div class="button-icon">⟲</div>
+                <span style="font-size: 0.75rem; color: var(--tg-theme-hint-color, #4b5563);">Exchange</span>
+            </div>
+            <div class="action-button">
+                <div class="button-icon">→</div>
+                <span style="font-size: 0.75rem; color: var(--tg-theme-hint-color, #4b5563);">Transfer</span>
+            </div>
+            <div class="action-button">
+                <div class="button-icon">☰</div>
+                <span style="font-size: 0.75rem; color: var(--tg-theme-hint-color, #4b5563);">Details</span>
+            </div>
+        </div>
+        <div class="transactions-header">
+            <h3 style="font-size: 1.125rem; font-weight: 600;">Transactions</h3>
+            <button style="color: var(--tg-theme-link-color, #3b82f6); font-size: 0.875rem; background: none; border: none;">View all</button>
+        </div>
+        <div class="transaction-card">
+            <div class="transaction-details">
+                <div>
+                    <p style="font-weight: 600;">Balance Top Up</p>
+                    <p style="font-size: 0.875rem; color: var(--tg-theme-hint-color, #6b7280);">1 Jul 2024</p>
+                </div>
+                <p style="color: #10b981; font-weight: 600;">€ 800</p>
+            </div>
+        </div>
     </main>
-    <footer>
-        <p>&copy; 2024 Simple Python Website</p>
-    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const webapp = window.Telegram.WebApp;
+            webapp.ready();
+            
+            fetch('/get_user_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({initData: webapp.initData}),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('cardHolder').textContent = data.name.toUpperCase();
+                document.getElementById('balance').textContent = `€ ${data.balance.toFixed(2)}`;
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
 </body>
 </html>
