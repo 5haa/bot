@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from telebot import TeleBot
 import mysql.connector
 from mysql.connector import Error
@@ -122,24 +122,27 @@ def start(message):
     bot.reply_to(message, greeting)
     logger.info(f"Sent greeting to user: {message.from_user.id}")
 
-def bot_polling():
-    bot.remove_webhook()
-    bot.polling(none_stop=True, interval=0)
-
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def webhook():
-    bot.process_new_updates([TeleBot.de_json(request.stream.read().decode("utf-8"))])
-    return "!", 200
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = request.get_json()
+        bot.process_new_updates([update])
+        return jsonify({'status': 'ok'})
+    else:
+        return jsonify({'status': 'error', 'message': 'Invalid content type'})
 
 @app.route("/")
 def webhook_info():
+    bot_info = bot.get_me()
+    return f"Bot is active. Bot username: @{bot_info.username}", 200
+
+def set_webhook(url):
     bot.remove_webhook()
-    bot.set_webhook(url='https://bot-wn6y.onrender.com/' + BOT_TOKEN)
-    return "Webhook setup ok", 200
+    bot.set_webhook(url=url + '/' + BOT_TOKEN)
+    logger.info(f"Webhook set to: {url}/{BOT_TOKEN}")
 
 if __name__ == "__main__":
     create_table()
-    # Start bot polling in a separate thread
-    threading.Thread(target=bot_polling).start()
-    # Start Flask app
+    set_webhook(os.environ.get('WEBHOOK_URL', 'https://your-app-url.herokuapp.com'))
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
