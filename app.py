@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Replace with your actual bot token
-BOT_TOKEN = "7694805471:AAGJNkpGYsL_iif5tWgBnbrxdNrCz0eu2lY"
+BOT_TOKEN = "7451089550:AAGiilwzmCsRG0lv-j_5ZYQoQqFPPRb-Ndo"
 
 def verify_telegram_data(init_data):
     data_check_string = '\n'.join([f"{k}={v}" for k, v in sorted(init_data.items()) if k != 'hash'])
