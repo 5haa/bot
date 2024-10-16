@@ -1,11 +1,17 @@
+from flask import Flask, request
 from telebot import TeleBot
 import mysql.connector
 from mysql.connector import Error
 import logging
+import os
+import threading
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Flask app
+app = Flask(__name__)
 
 # Bot token
 BOT_TOKEN = '8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA'
@@ -116,13 +122,24 @@ def start(message):
     bot.reply_to(message, greeting)
     logger.info(f"Sent greeting to user: {message.from_user.id}")
 
-def remove_webhook():
+def bot_polling():
     bot.remove_webhook()
-    logger.info("Webhook removed")
+    bot.polling(none_stop=True, interval=0)
 
-if __name__ == '__main__':
-    logger.info("Starting bot...")
-    remove_webhook()
+@app.route('/' + BOT_TOKEN, methods=['POST'])
+def webhook():
+    bot.process_new_updates([TeleBot.de_json(request.stream.read().decode("utf-8"))])
+    return "!", 200
+
+@app.route("/")
+def webhook_info():
+    bot.remove_webhook()
+    bot.set_webhook(url='https://your-app-url.com/' + BOT_TOKEN)
+    return "Webhook setup ok", 200
+
+if __name__ == "__main__":
     create_table()
-    logger.info("Bot is polling for updates...")
-    bot.polling(none_stop=True)
+    # Start bot polling in a separate thread
+    threading.Thread(target=bot_polling).start()
+    # Start Flask app
+    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
