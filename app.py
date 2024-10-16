@@ -94,20 +94,38 @@ def start():
 
 @app.route('/')
 def home():
-    data = request.args.get('initData')
-    if not data:
-        return jsonify({'error': 'No init data provided'}), 400
+    app.logger.debug(f"Received request to home route")
+    app.logger.debug(f"Request args: {request.args}")
+    app.logger.debug(f"Request headers: {request.headers}")
 
-    data_dict = dict(x.split('=') for x in data.split('&'))
-    if not verify_telegram_data(data_dict):
-        return jsonify({'error': 'Invalid data'}), 400
+    init_data = request.args.get('initData')
+    
+    if not init_data:
+        app.logger.warning("No init data provided")
+        return render_template('error.html', message="No init data provided. Please launch this app from Telegram.")
 
-    user_data = json.loads(data_dict['user'])
-    user = User.query.filter_by(telegram_id=user_data['id']).first()
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
+    try:
+        data_dict = dict(x.split('=') for x in init_data.split('&'))
+        app.logger.debug(f"Parsed init data: {data_dict}")
 
-    return render_template('home.html', user=user)
+        if not verify_telegram_data(data_dict):
+            app.logger.warning("Invalid Telegram data")
+            return render_template('error.html', message="Invalid data. Please try launching the app again.")
+
+        user_data = json.loads(data_dict['user'])
+        app.logger.debug(f"User data: {user_data}")
+
+        user = User.query.filter_by(telegram_id=user_data['id']).first()
+        if not user:
+            app.logger.warning(f"User not found: {user_data['id']}")
+            return render_template('error.html', message="User not found. Please start the bot first.")
+
+        return render_template('home.html', user=user)
+
+    except Exception as e:
+        app.logger.error(f"Error processing home route: {str(e)}")
+        app.logger.error(traceback.format_exc())
+        return render_template('error.html', message="An error occurred. Please try again later.")
 
 @app.errorhandler(500)
 def internal_error(error):
