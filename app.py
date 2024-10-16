@@ -104,6 +104,10 @@ def start(message):
     
     bot.reply_to(message, greeting)
 
+def remove_webhook():
+    bot.remove_webhook()
+
 if __name__ == '__main__':
+    remove_webhook()  # Remove the webhook before starting the bot
     create_table()
-    bot.polling()
+    bot.polling(none_stop=True)
