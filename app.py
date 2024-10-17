@@ -1,94 +1,129 @@
+import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
+from flask import Flask, request
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    Dispatcher,
+    CommandHandler,
+    MessageHandler,
+    Filters,
+    ConversationHandler,
+    CallbackContext,
+)
+from telegram import Bot
+
+app = Flask(__name__)
 
 # Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Replace 'YOUR_BOT_TOKEN' with your actual bot token
-TOKEN = '8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA'
+# Define states for ConversationHandler
+CHOOSING_CATEGORY, CHOOSING_ITEM, ORDER_CONFIRMATION = range(3)
 
-# Menu items
+# Sample menu
 MENU = {
-    'pizza': 10,
-    'burger': 8,
-    'salad': 6,
-    'pasta': 9,
-    'drink': 2
+    'Pizza': ['Margherita', 'Pepperoni', 'Hawaiian'],
+    'Burger': ['Beef Burger', 'Chicken Burger', 'Veggie Burger'],
+    'Drinks': ['Coke', 'Pepsi', 'Water'],
 }
 
-# User's current order
-user_orders = {}
+# Get the API token from environment variables
+TOKEN = os.environ.get('8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA')
+HEROKU_APP_NAME = os.environ.get('HEROKU_APP_NAME')
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
-    await update.message.reply_html(
-        f"Hi {user.mention_html()}! Welcome to the Food Order Bot. Use /menu to see our offerings."
+# Initialize the bot and dispatcher
+bot = Bot(token=TOKEN)
+dispatcher = Dispatcher(bot, None, use_context=True)
+
+# Define conversation handler functions
+def start(update: Update, context: CallbackContext) -> int:
+    reply_keyboard = [['Order Food']]
+    update.message.reply_text(
+        "Welcome to FoodBot! How can I assist you today?",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
     )
+    return CHOOSING_CATEGORY
 
-async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Display the menu with inline buttons."""
-    keyboard = [
-        [InlineKeyboardButton(f"{item.capitalize()} - ${price}", callback_data=f"add_{item}")]
-        for item, price in MENU.items()
-    ]
-    keyboard.append([InlineKeyboardButton("View Order", callback_data="view_order")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Please choose an item to add to your order:", reply_markup=reply_markup)
+def order_food(update: Update, context: CallbackContext) -> int:
+    categories = list(MENU.keys())
+    reply_keyboard = [categories]
+    update.message.reply_text(
+        "Please select a category:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return CHOOSING_ITEM
 
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle button clicks."""
-    query = update.callback_query
-    await query.answer()
+def choose_item(update: Update, context: CallbackContext) -> int:
+    category = update.message.text
+    context.user_data['category'] = category
 
-    user_id = query.from_user.id
-    if user_id not in user_orders:
-        user_orders[user_id] = {}
+    if category not in MENU:
+        update.message.reply_text("Sorry, I didn't understand that category.")
+        return CHOOSING_CATEGORY
 
-    if query.data.startswith("add_"):
-        item = query.data.split("_")[1]
-        if item in user_orders[user_id]:
-            user_orders[user_id][item] += 1
-        else:
-            user_orders[user_id][item] = 1
-        await query.edit_message_text(f"Added 1 {item} to your order. Use /menu to add more items or view your order.")
-    elif query.data == "view_order":
-        order_text = "Your current order:\n\n"
-        total = 0
-        for item, quantity in user_orders[user_id].items():
-            price = MENU[item] * quantity
-            order_text += f"{item.capitalize()}: {quantity} x ${MENU[item]} = ${price}\n"
-            total += price
-        order_text += f"\nTotal: ${total}"
+    items = MENU[category]
+    reply_keyboard = [items]
+    update.message.reply_text(
+        f"Please choose an item from {category}:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return ORDER_CONFIRMATION
 
-        keyboard = [
-            [InlineKeyboardButton("Place Order", callback_data="place_order")],
-            [InlineKeyboardButton("Cancel Order", callback_data="cancel_order")],
-            [InlineKeyboardButton("Back to Menu", callback_data="back_to_menu")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(order_text, reply_markup=reply_markup)
-    elif query.data == "place_order":
-        # Here you would typically integrate with a payment system and delivery service
-        await query.edit_message_text("Thank you for your order! It will be delivered soon.")
-        del user_orders[user_id]
-    elif query.data == "cancel_order":
-        del user_orders[user_id]
-        await query.edit_message_text("Your order has been cancelled. Use /menu to start a new order.")
-    elif query.data == "back_to_menu":
-        await menu(update, context)
+def confirm_order(update: Update, context: CallbackContext) -> int:
+    item = update.message.text
+    category = context.user_data.get('category')
 
-def main() -> None:
-    """Run the bot."""
-    application = ApplicationBuilder().token(TOKEN).build()
+    if item not in MENU.get(category, []):
+        update.message.reply_text("Sorry, that item isn't available.")
+        return CHOOSING_ITEM
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("menu", menu))
-    application.add_handler(CallbackQueryHandler(button_click))
+    update.message.reply_text(
+        f"Thank you! Your order for {item} has been placed and will be delivered shortly."
+    )
+    return ConversationHandler.END
 
-    application.run_polling()
+def cancel(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text("Order canceled. Have a nice day!")
+    return ConversationHandler.END
+
+# Register handlers
+conv_handler = ConversationHandler(
+    entry_points=[CommandHandler('start', start)],
+    states={
+        CHOOSING_CATEGORY: [
+            MessageHandler(Filters.regex('^(Order Food)$'), order_food),
+            MessageHandler(Filters.text & ~Filters.command, order_food)
+        ],
+        CHOOSING_ITEM: [
+            MessageHandler(Filters.text & ~Filters.command, choose_item)
+        ],
+        ORDER_CONFIRMATION: [
+            MessageHandler(Filters.text & ~Filters.command, confirm_order)
+        ],
+    },
+    fallbacks=[CommandHandler('cancel', cancel)]
+)
+
+dispatcher.add_handler(conv_handler)
+
+# Define route for webhook
+@app.route('/{}'.format(TOKEN), methods=['POST'])
+def webhook():
+    """Receives updates from Telegram and processes them."""
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'OK', 200
+
+# Set webhook when the app starts
+@app.before_first_request
+def set_webhook():
+    webhook_url = f'https://{HEROKU_APP_NAME}.herokuapp.com/{TOKEN}'
+    bot.set_webhook(url=webhook_url)
+    logger.info(f"Webhook set to {webhook_url}")
 
 if __name__ == '__main__':
-    main()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8443)))
