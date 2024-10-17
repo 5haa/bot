@@ -9,7 +9,7 @@ from telegram.ext import (
     Filters,
     ConversationHandler,
     CallbackContext,
-)
+
 from telegram import Bot
 
 app = Flask(__name__)
@@ -33,7 +33,7 @@ MENU = {
 
 # Get the API token from environment variables
 TOKEN = os.environ.get('8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA')
-HEROKU_APP_NAME = os.environ.get('HEROKU_APP_NAME')
+HEROKU_APP_NAME = os.environ.get('shaagamebot')
 
 # Initialize the bot and dispatcher
 bot = Bot(token=TOKEN)
