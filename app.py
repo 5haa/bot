@@ -1,4 +1,3 @@
-import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler
 
@@ -12,8 +11,8 @@ async def start(update: Update, context):
 
 # Main function to run the bot
 if __name__ == '__main__':
-    # Get bot token from environment variables
-    bot_token = os.getenv('BOT_TOKEN')
+    # Hardcoded bot token
+    bot_token = '8062581965:AAHCldmVb7amxDyfQuj-njP4_jdSKzKL9RA'
 
     # Initialize the bot application
     application = ApplicationBuilder().token(bot_token).build()
